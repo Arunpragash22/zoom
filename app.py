@@ -40,28 +40,27 @@ def create_meeting():
     return jsonify({"status": "created", "meeting_id": result.get("id"), "join_url": result.get("join_url")})
 
 @app.route("/webhook", methods=["POST"])
-def zoom_webhook():
-    data = request.get_json(force=True)
-    print("📩 Incoming Zoom Event:", data)
+def webhook():
+    data = request.get_json()
 
-    if data and data.get("event") == "endpoint.url_validation":
-        plain_token = data["payload"]["plainToken"]
-        secret_token = os.getenv("ZOOM_CLIENT_SECRET", "")
-        hash_for_validate = hmac.new(secret_token.encode(), plain_token.encode(), hashlib.sha256).digest()
-        encoded_hash = base64.b64encode(hash_for_validate).decode()
-        return jsonify({"plainToken": plain_token, "encryptedToken": encoded_hash})
+    # Zoom sends a challenge when validating
+    if data and "plainToken" in data:
+        plain_token = data["plainToken"]
+        encrypted_token = base64.b64encode(
+            hmac.new(
+                os.getenv("ZOOM_VERIFICATION_TOKEN").encode(),
+                plain_token.encode(),
+                hashlib.sha256
+            ).digest()
+        ).decode("utf-8")
+        return jsonify({
+            "plainToken": plain_token,
+            "encryptedToken": encrypted_token
+        })
 
-    event_type = data.get("event")
-    if event_type == "meeting.participant_joined":
-        participant = data["payload"]["object"]["participant"]["user_name"]
-        meeting_id = data["payload"]["object"]["id"]
-        print(f"✅ {participant} joined meeting {meeting_id}")
-    elif event_type == "meeting.participant_left":
-        participant = data["payload"]["object"]["participant"]["user_name"]
-        meeting_id = data["payload"]["object"]["id"]
-        print(f"👋 {participant} left meeting {meeting_id}")
-
-    return jsonify({"status": "ok"}), 200
+    # Normal event
+    print("Received event:", data)
+    return jsonify({"status": "received"}), 200
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
