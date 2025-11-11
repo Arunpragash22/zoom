@@ -41,23 +41,27 @@ def create_meeting():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    data = request.get_json()
-
-    # Zoom sends a challenge when validating
+    data = request.get_json(force=True)
+    
     if data and "plainToken" in data:
         plain_token = data["plainToken"]
+        secret_token = os.getenv("ZOOM_VERIFICATION_TOKEN")
+        if not secret_token:
+            return "Missing ZOOM_VERIFICATION_TOKEN", 500
+        
         encrypted_token = base64.b64encode(
             hmac.new(
-                os.getenv("ZOOM_VERIFICATION_TOKEN").encode(),
+                secret_token.encode(),
                 plain_token.encode(),
                 hashlib.sha256
             ).digest()
         ).decode("utf-8")
+
         return jsonify({
             "plainToken": plain_token,
             "encryptedToken": encrypted_token
         })
-
+    
     # Normal event
     print("Received event:", data)
     return jsonify({"status": "received"}), 200
