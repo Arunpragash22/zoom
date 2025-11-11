@@ -1,12 +1,20 @@
 from flask import Flask, request, jsonify
 import os, hmac, hashlib, base64
+from database import init_db, mongo
 
 app = Flask(__name__)
+app.config["MONGO_URI"] = os.getenv("MONGO_URI")
+init_db(app)
+
+@app.route("/")
+def home():
+    return jsonify({"message": "Flask + MongoDB connected"})
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(force=True)
-    if data and "plainToken" in data:
+
+    if "plainToken" in data:
         plain_token = data["plainToken"]
         secret_token = os.getenv("ZOOM_VERIFICATION_TOKEN")
         encrypted_token = base64.b64encode(
@@ -16,7 +24,9 @@ def webhook():
             "plainToken": plain_token,
             "encryptedToken": encrypted_token
         })
-    return jsonify({"status": "received"}), 200
+
+    print("Received Zoom event:", data)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
